@@ -15,15 +15,24 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 	SetDrawScreen(DX_SCREEN_BACK);
 
 	//円(ボール)の中心
-	int x = 40;
-	int y = 40;
+	int ballPosX = 40, ballPosY = 40;
 
-	//今回②での追加
+	//ボールの半径
+	const int ballRadius = 10;
+
+	//ボールの色{red,green,blue}
+	const int ballColor[3]{
+		255,255,255
+	};
 
 	//ボールの動く方向を変数で表す。vecXが+1、右-1で左。VecYが+1で下、-1で上。
 	int vecX = 1, vecY = 1;
 
-	//追加ここまで
+	//ボールの移動スピード
+	const int ballSpeed = 5;
+
+	//画面サイズ
+	const int windowSizeX = 640, windowSizeY = 480;
 
 	//windowsのアプリを実行するときにはProcessMassage()という関数を定期的に呼び出さなければならない為
 	while (ProcessMessage() != -1) {
@@ -37,20 +46,19 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		
 		//円を書く関数（円の中心のX座標,Y座標,半径,色,塗りつぶすか否か）
 		//Getカラーは色番号を変換
-		DrawCircle(x, y, 10, GetColor(255, 255, 255), TRUE);
+		DrawCircle(ballPosX, ballPosY, ballRadius, GetColor(ballColor[0], ballColor[1], ballColor[2]), TRUE);
 
 		//今回②での追加
 
 		//弾が跳ね返る条件文
-		//640はデフォルトでの画面サイズの横、480は画面サイズの縦
-		if (x > 640)vecX = -1;
-		if (x < 0)vecX = 1;
-		if (y < 0)vecY = 1;
-		if (y > 480)vecY = -1;
+		if (ballPosX > windowSizeX)vecX = -1;
+		if (ballPosX < 0)vecX = 1;
+		if (ballPosY < 0)vecY = 1;
+		if (ballPosY > windowSizeY)vecY = -1;
 
-		//弾の座標を動かす（5はスピード）
-		x += 5 * vecX;
-		y += 5 * vecY;
+		//弾の座標を動かす
+		ballPosX += ballSpeed * vecX;
+		ballPosY += ballSpeed * vecY;
 
 		//追加ここまで
 
