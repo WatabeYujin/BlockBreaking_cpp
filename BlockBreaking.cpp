@@ -18,6 +18,13 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 	int x = 40;
 	int y = 40;
 
+	//今回②での追加
+
+	//ボールの動く方向を変数で表す。vecXが+1、右-1で左。VecYが+1で下、-1で上。
+	int vecX = 1, vecY = 1;
+
+	//追加ここまで
+
 	//windowsのアプリを実行するときにはProcessMassage()という関数を定期的に呼び出さなければならない為
 	while (ProcessMessage() != -1) {
 		//呼び出された時点での時間をミリ秒で返す
@@ -31,6 +38,21 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		//円を書く関数（円の中心のX座標,Y座標,半径,色,塗りつぶすか否か）
 		//Getカラーは色番号を変換
 		DrawCircle(x, y, 10, GetColor(255, 255, 255), TRUE);
+
+		//今回②での追加
+
+		//弾が跳ね返る条件文
+		//640はデフォルトでの画面サイズの横、480は画面サイズの縦
+		if (x > 640)vecX = -1;
+		if (x < 0)vecX = 1;
+		if (y < 0)vecY = 1;
+		if (y > 480)vecY = -1;
+
+		//弾の座標を動かす（5はスピード）
+		x += 5 * vecX;
+		y += 5 * vecY;
+
+		//追加ここまで
 
 		//引数で指定するキーが押されているかどうか。押されていれば1を返す
 		//今回の場合escが押されると1を返し、ループを抜ける
