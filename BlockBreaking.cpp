@@ -14,8 +14,39 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 	//動くゲームを表示するのに必要な裏画面を描画するための関数
 	SetDrawScreen(DX_SCREEN_BACK);
 
-	//円(ボール)の中心
-	int ballPosX = 40, ballPosY = 40;
+	//プレイヤーバーの色{red,green,blue}
+	const int playerColor[3]{
+		100100,100
+	};
+
+	//今回③での追加
+
+	//ボールの動く方向を変数で表す。vecXが+1、右-1で左。VecYが+1で下、-1で上。
+	//今回からスペースキーを押すとこの値が変わり、ボールが動き出す仕組みに変更する。
+	int vecX = 0, vecY = 0;
+	
+	//追加ここまで
+
+	//ボールの移動スピード
+	const int ballSpeed = 5;
+
+	//画面サイズ
+	const int windowSizeX = 640, windowSizeY = 480;
+
+	//プレイヤーバーのサイズ
+	int playerSizeX = 120, playerSizeY = 20;
+
+	//プレイヤーバーの初期位置
+	const int playerBarInitialX = windowSizeX /2 - playerSizeX/2, playerBarInitialY = 400;
+
+	//プレイヤーバーの位置
+	int playerBarX = playerBarInitialX, playerBarY = playerBarInitialY;
+
+	//ボールのスポーン位置
+	const int ballSpawnPosX = windowSizeX / 2, ballSpawnPosY = playerBarInitialY-50;
+
+	//ボールの座標
+	int ballPosX = ballSpawnPosX, ballPosY = ballSpawnPosY;
 
 	//ボールの半径
 	const int ballRadius = 10;
@@ -25,29 +56,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		255,255,255
 	};
 
-	//プレイヤーバーの色{red,green,blue}
-	const int playerColor[3]{
-		100100,100
-	};
 
-	//ボールの動く方向を変数で表す。vecXが+1、右-1で左。VecYが+1で下、-1で上。
-	int vecX = 1, vecY = 1;
-
-	//ボールの移動スピード
-	const int ballSpeed = 5;
-
-	//画面サイズ
-	const int windowSizeX = 640, windowSizeY = 480;
-
-	//今回③での追加
-
-	//プレイヤーバーの初期位置
-	int playerBarX = 320, playerBarY = 400;
-
-	//プレイヤーバーのサイズ
-	int playerSizeX = 60, playerSizeY = 20;
-
-	//追加ここまで
 
 	//windowsのアプリを実行するときにはProcessMassage()という関数を定期的に呼び出さなければならない為
 	while (ProcessMessage() != -1) {
@@ -63,45 +72,48 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		//Getカラーは色番号を変換
 		DrawCircle(ballPosX, ballPosY, ballRadius, GetColor(ballColor[0], ballColor[1], ballColor[2]), TRUE);
 
-		//今回③での追加
-
 		//プレイヤーの描画を行う。DrawBox(左上頂点のX座標, Y座標, 右下頂点X座標, Y座標, 色, 塗りつぶすか否か)
 		DrawBox(playerBarX, playerBarY, playerBarX + playerSizeX, playerBarY + playerSizeY, GetColor(playerColor[0], playerColor[1], playerColor[2]), TRUE);
 
-		//追加ここまで
+		//ボールのスピードが0のときは動かないので条件分岐
+		if(vecX != 0&& vecY != 0){
+			//弾が跳ね返る条件文
+			if (ballPosX > windowSizeX)vecX = -1;
+			if (ballPosX < 0)vecX = 1;
+			if (ballPosY < 0)vecY = 1;
+			if (ballPosY > windowSizeY)vecY = -1;
 
-		//今回③での追加
-
-		//弾が跳ね返る条件文
-		if (ballPosX > windowSizeX)vecX = -1;
-		if (ballPosX < 0)vecX = 1;
-		if (ballPosY < 0)vecY = 1;
-		if (ballPosY > windowSizeY)vecY = -1;
-
-
-		//今回③での追加
-
-		//プレイヤーと弾が接触したら弾のY方向の向きを-1にして跳ね返す
-		if( ballPosX > playerBarX && ballPosX<playerBarX + playerSizeX && ballPosY > playerBarY) vecY = -1;
-
-		//追加ここまで
-
+			//プレイヤーと弾が接触したら弾のY方向の向きを-1にして跳ね返す
+			if (ballPosX > playerBarX && ballPosX < playerBarX + playerSizeX &&
+				ballPosY > playerBarY &&ballPosY < playerBarY + playerSizeY) vecY = -1;
+			//画面より下にボールが出たらミスとして扱う
+			if (ballPosY > windowSizeY) {
+				ballPosX = ballSpawnPosX;
+				ballPosY = ballSpawnPosY;
+				vecX = 0;
+				vecY = 0;
+			}
+		}
+		else {
+			//スペースキーを押すと開始させる。
+			DrawFormatString(260, 160, GetColor(255, 255, 255), "PUSH SPACE");
+			if (CheckHitKey(KEY_INPUT_SPACE)) {
+				vecX = 1;
+				vecY = -1;
+			}
+		}
 		//弾の座標を動かす
 		ballPosX += ballSpeed * vecX;
 		ballPosY += ballSpeed * vecY;
 
-		//今回③の追加
-
 		//CheckHitKey()で右キーが”押されているか”を判定し、押されている間はプレイヤーのX座標を+10する。
-		if (CheckHitKey(KEY_INPUT_RIGHT) == 1) {
+		if (CheckHitKey(KEY_INPUT_RIGHT) == 1 && playerBarX < windowSizeX - playerSizeX) {
 			playerBarX += 10;
 		}
 		//逆に左キーが押されていた場合、プレイヤーのX座標を-10する。
-		if (CheckHitKey(KEY_INPUT_LEFT) == 1) {
+		if (CheckHitKey(KEY_INPUT_LEFT) == 1 && playerBarX > 0) {
 			playerBarX -= 10;
 		}
-		
-		//追加ここまで
 
 		//引数で指定するキーが押されているかどうか。押されていれば1を返す
 		//今回の場合escが押されると1を返し、ループを抜ける
