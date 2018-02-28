@@ -4,3 +4,8 @@
 シリーズに沿って進めているものです。
 
 http://nut-softwaredevelopper.hatenablog.com/entry/2015/04/13/214627
+
+また、DXライブラリを使用して制作しています。
+http://dxlib.o.oo7.jp/index.html
+
+関係者の方々、本当にありがとうございます。
