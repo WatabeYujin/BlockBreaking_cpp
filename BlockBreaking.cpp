@@ -19,13 +19,10 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		100100,100
 	};
 
-	//今回③での追加
-
 	//ボールの動く方向を変数で表す。vecXが+1、右-1で左。VecYが+1で下、-1で上。
 	//今回からスペースキーを押すとこの値が変わり、ボールが動き出す仕組みに変更する。
 	int vecX = 0, vecY = 0;
 	
-	//追加ここまで
 
 	//ボールの移動スピード
 	const int ballSpeed = 5;
@@ -56,7 +53,16 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		255,255,255
 	};
 
+	//⑤での追加
 
+	//ブロックの状態の管理
+	bool block[5]{
+	true,true,
+	true,true,
+	true
+	};
+
+	//追加ここまで
 
 	//windowsのアプリを実行するときにはProcessMassage()という関数を定期的に呼び出さなければならない為
 	while (ProcessMessage() != -1) {
@@ -74,6 +80,24 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 
 		//プレイヤーの描画を行う。DrawBox(左上頂点のX座標, Y座標, 右下頂点X座標, Y座標, 色, 塗りつぶすか否か)
 		DrawBox(playerBarX, playerBarY, playerBarX + playerSizeX, playerBarY + playerSizeY, GetColor(playerColor[0], playerColor[1], playerColor[2]), TRUE);
+
+		//⑤での追加
+
+		//ブロックが生きているか・ブロックに当たった時の処理
+		for (int i = 0; i < 5; i++) {
+			if (block[i]) {
+				//生きていればブロックを表示
+				DrawBox(80 + i * 100, 100, 80 + (i + 1) * 100 - 10, 140, GetColor(255, 255, 255), TRUE);
+				if (ballPosX > 80 + i * 100 && ballPosX < 80 + (i + 1) * 100 - 10 && ballPosY>100 && ballPosY < 140) {
+					//ボールの跳ね方が変なのは後のパートにて修正予定
+					block[i] = false;
+					vecX *= -1;
+					vecY *= -1;
+				}
+			}
+		}
+
+		//追加ここまで
 
 		//ボールのスピードが0のときは動かないので条件分岐
 		if(vecX != 0&& vecY != 0){
@@ -96,12 +120,26 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		}
 		else {
 			//スペースキーを押すと開始させる。
-			DrawFormatString(260, 160, GetColor(255, 255, 255), "PUSH SPACE");
+			DrawFormatString(260, 160, GetColor(255, 255, 255), "SPACE押さんかい");
 			if (CheckHitKey(KEY_INPUT_SPACE)) {
 				vecX = 1;
 				vecY = -1;
+				for (int i = 0; i < 5; i++)block[i] = true;
 			}
 		}
+		//⑤での追加
+
+		//ブロックが全て無くなったときの処理
+		if (!block[0] && !block[1] && !block[2] && !block[3] && !block[4]) {
+			DrawFormatString(260, 120, GetColor(255, 255, 255), "やるやん");
+			ballPosX = ballSpawnPosX;
+			ballPosY = ballSpawnPosY;
+			vecX = 0;
+			vecY = 0;
+		}
+
+		//追加ここまで
+
 		//弾の座標を動かす
 		ballPosX += ballSpeed * vecX;
 		ballPosY += ballSpeed * vecY;
