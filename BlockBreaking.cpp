@@ -1,11 +1,55 @@
 //DXライブラリの引用指示
 #include <DxLib.h>
+///ここまでの冒険を記録しますか？様の
+///【ゲーム製作入門】C/C++でブロック崩しを作る【DXライブラリ】より
+///http://nut-softwaredevelopper.hatenablog.com/entry/2015/04/13/214627
+
+//⑥での追加
+
+//ブロックについてのクラス
+class Block {
+//外部から参照できるようにするためpublic
+public:
+
+	//ブロックの座標
+	int blockX, blockY;
+	//ブロックのサイズ
+	int width, height;
+	//ブロックの生死状態
+	bool live;
+
+	//ブロック自体が生きていた場合描画を行う関数
+	void View() {
+		if (live) {
+			DrawBox(blockX,blockY,blockX+width,blockY+height,GetColor(255,255,255),TRUE);
+		}
+	}
+
+
+	//ボールなどがブロックに入ったら消える処理
+	void liveControl(int targetX, int targetY, int targetVec) {
+		if (targetX > blockX && targetX<blockX + width && targetY > blockY && targetY < blockY && blockY < blockY + height) {
+			live = false;
+		}
+		if (targetVec = -0 && CheckHitKey(KEY_INPUT_SPACE)) {
+			live = true;
+		}
+	}
+
+	//ブロックを配置する関数
+	Block(int setX, int setY) {
+		blockX = setX;
+		blockY = setY;
+		width = 90;
+		height = 20;
+		live = true;
+	}
+};
+//追加ここまで
 
 //main()と大体同じ
 int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine, int nCmdShow ){
-	///ここまでの冒険を記録しますか？様の
-	///【ゲーム製作入門】C/C++でブロック崩しを作る【DXライブラリ】より
-	///http://nut-softwaredevelopper.hatenablog.com/entry/2015/04/13/214627
+	
 
 	//ウィンドウモード
 	ChangeWindowMode(TRUE);
@@ -53,16 +97,11 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		255,255,255
 	};
 
-	//⑤での追加
-
-	//ブロックの状態の管理
-	bool block[5]{
-	true,true,
-	true,true,
-	true
-	};
-
-	//追加ここまで
+	//ポインタを通してブロックを生成する
+	Block* bl0;
+	bl0 = new Block(80, 100);
+	Block* bl1;
+	bl1 = new Block(200, 100);
 
 	//windowsのアプリを実行するときにはProcessMassage()という関数を定期的に呼び出さなければならない為
 	while (ProcessMessage() != -1) {
@@ -81,23 +120,11 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		//プレイヤーの描画を行う。DrawBox(左上頂点のX座標, Y座標, 右下頂点X座標, Y座標, 色, 塗りつぶすか否か)
 		DrawBox(playerBarX, playerBarY, playerBarX + playerSizeX, playerBarY + playerSizeY, GetColor(playerColor[0], playerColor[1], playerColor[2]), TRUE);
 
-		//⑤での追加
-
-		//ブロックが生きているか・ブロックに当たった時の処理
-		for (int i = 0; i < 5; i++) {
-			if (block[i]) {
-				//生きていればブロックを表示
-				DrawBox(80 + i * 100, 100, 80 + (i + 1) * 100 - 10, 140, GetColor(255, 255, 255), TRUE);
-				if (ballPosX > 80 + i * 100 && ballPosX < 80 + (i + 1) * 100 - 10 && ballPosY>100 && ballPosY < 140) {
-					//ボールの跳ね方が変なのは後のパートにて修正予定
-					block[i] = false;
-					vecX *= -1;
-					vecY *= -1;
-				}
-			}
-		}
-
-		//追加ここまで
+		//ブロックの生存状態を読み取る
+		bl0->View();
+		bl0->liveControl(ballPosX, ballPosY, vecX);
+		bl1->View();
+		bl1->liveControl(ballPosX, ballPosY, vecX);
 
 		//ボールのスピードが0のときは動かないので条件分岐
 		if(vecX != 0&& vecY != 0){
@@ -124,13 +151,13 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 			if (CheckHitKey(KEY_INPUT_SPACE)) {
 				vecX = 1;
 				vecY = -1;
-				for (int i = 0; i < 5; i++)block[i] = true;
 			}
 		}
-		//⑤での追加
+		//⑥での追加
 
 		//ブロックが全て無くなったときの処理
-		if (!block[0] && !block[1] && !block[2] && !block[3] && !block[4]) {
+		//メンバー変数もアロー演算子可能
+		if (!bl0->live && bl1 ->live) {
 			DrawFormatString(260, 120, GetColor(255, 255, 255), "やるやん");
 			ballPosX = ballSpawnPosX;
 			ballPosY = ballSpawnPosY;
@@ -165,6 +192,10 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		//この値にループ中に発生した時間差を引くと正確に1/60秒でループが一周終わる
 		WaitTimer(1000 / 60 - (endTime - startTime));
 	}
+	
+	//newを使って生成したblockを消去する
+	delete bl0;
+	delete bl1;
 	//Dxライブラリを終了させる関数
 	DxLib_End();
 	//winMainが無事終了したことをあらわす
