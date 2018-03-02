@@ -1,5 +1,9 @@
 //DXライブラリの引用指示
 #include <DxLib.h>
+
+#include <string>       // ヘッダファイルインクルード
+
+using namespace std;         //  名前空間指定
 //ブロックの数を表すマクロ
 #define BLOCK_NUM 24
 #define WINDOW_X 640
@@ -37,7 +41,7 @@ public:
 		x = setX;
 		y = setY;
 		//ブロックの画像を読み込む
-		gh = LoadGraph("Block.png");
+		gh = LoadGraph("Resource/Sprite/Block.png");
 		//読み込んだ画像から幅と高さを求めてint型に代入する関数
 		GetGraphSize(gh, &width, &height);
 		live = true;
@@ -60,7 +64,7 @@ public:
 		x = 320;
 		y = 550;
 		speed = 10;
-		gh = LoadGraph("Player.png");
+		gh = LoadGraph("Resource/Sprite/Player.png");
 		width = 80;
 		height = 20;
 	}
@@ -116,6 +120,39 @@ public:
 	}
 };
 
+class Audio {
+public:
+	int audioMem;
+
+	//ブロックを配置する関数
+	Audio(int audiomem) {
+		audioMem = audiomem;
+	}
+
+	void PlayAudio(int playType) {
+		switch (playType)
+		{
+		case 0:
+			PlaySoundMem(audioMem, DX_PLAYTYPE_NORMAL, TRUE);
+			break;
+		case 1:
+			PlaySoundMem(audioMem, DX_PLAYTYPE_BACK, TRUE);
+			break;
+		case 2:
+			PlaySoundMem(audioMem, DX_PLAYTYPE_LOOP, TRUE);
+			break;
+		default:
+			break;
+		}
+
+	}
+
+	void StopAudio() {
+		StopSoundMem(audioMem);
+	}
+
+};
+
 //ゲームの動作処理をクラス内での関数で実行する
 //その為メンバー変数として
 class GameControl {
@@ -123,6 +160,7 @@ public:
 	Block * bl[BLOCK_NUM];
 	Player* pl;
 	Ball* ba;
+	Audio * au[3];
 
 	int life;
 	int state;
@@ -150,13 +188,16 @@ public:
 	GameControl() {
 		life = 2;
 		state = 0;
-		titlegh = LoadGraph("Title.png");
-		gameOvergh = LoadGraph("GameOver.png");
-		cleargh = LoadGraph("Clear.png");
+		titlegh = LoadGraph("Resource/Sprite/Title.png");
+		gameOvergh = LoadGraph("Resource/Sprite/GameOver.png");
+		cleargh = LoadGraph("Resource/Sprite/Clear.png");
 		pushFlag = false;
 		for (int i = 0; i < BLOCK_NUM; i++) {
 			bl[i] = new Block(140 + (i % 4) * 100, 10 + (i / 4) * 50);
 		}
+		au[0] = new Audio(LoadSoundMem("Resource/Audio/Uprising.mp3"));
+		au[1] = new Audio(LoadSoundMem("Resource/Audio/bound.ogg"));
+		au[2] = new Audio(LoadSoundMem("Resource/Audio/player.ogg"));
 		pl = new Player();
 		ba = new Ball();
 	}
@@ -167,6 +208,9 @@ public:
 	~GameControl() {
 		for (int i = 0; BLOCK_NUM; i++) {
 			delete bl[i];
+		}
+		for (int i = 0; 1; i++) {
+			delete au[i];
 		}
 		delete pl;
 		delete ba;
@@ -179,6 +223,7 @@ public:
 			state = 1;
 			ba->x = 320;
 			ba->y = 300;
+			au[0]->PlayAudio(2);
 		}
 	}
 
@@ -209,6 +254,7 @@ public:
 			if (ba->x < 0)ba->vecX = 1;
 			if (ba->y < 0)ba->vecY = 1;
 			if (ba->x > pl->x && ba-> x <pl ->x + pl -> width && ba -> y + ba -> r >pl->y) {
+				au[2]->PlayAudio(1);
 				ba->vecY = -1;
 			}
 			if (ba->y > WINDOW_Y) {
@@ -222,21 +268,25 @@ public:
 				if (bl[i]->live) {
 					if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
 						ba->y + ba->r>bl[i]->y && ba->y + ba->r < bl[i]->y + bl[i]->height) {
+						au[1]->PlayAudio(1);
 						bl[i]->live = false;
 						ba->vecY *= -1;
 					}
 					if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
 						ba->y - ba->r>bl[i]->y && ba->y - ba->r < bl[i]->y + bl[i]->height) {
+						au[1]->PlayAudio(1);
 						bl[i]->live = false;
 						ba->vecY *= -1;
 					}
 					if (ba->x+ba->r > bl[i]->x && ba->x +ba->r < bl[i]->x + bl[i]->width &&
 						ba->y > bl[i]->y && ba->y < bl[i] ->y+bl[i]->height) {
+						au[1]->PlayAudio(1);
 						bl[i]->live = false;
 						ba->vecX *= -1;
 					}
 					if (ba->x - ba->r > bl[i]->x && ba->x - ba->r < bl[i]->x + bl[i]->width &&
 						ba->y > bl[i]->y && ba->y < bl[i]->y + bl[i]->height) {
+						au[1]->PlayAudio(1);
 						bl[i]->live = false;
 						ba->vecX *= -1;
 					}
@@ -258,6 +308,7 @@ public:
 	
 	//ゲームオーバー時の処理(state=2)
 	void GameOver() {
+		au[0]->StopAudio();
 		DrawGraph(0, 0, gameOvergh, TRUE);
 		//if (CheckHitKey(KEY_INPUT_SPACE)) {
 		if (PushSpace()) {
@@ -271,6 +322,7 @@ public:
 
 	//ゲームクリア時の処理(state=3)
 	void GameClear() {
+		au[0]->StopAudio();
 		DrawGraph(0, 0, cleargh, TRUE);
 		if (CheckHitKey(KEY_INPUT_SPACE)) {
 			state = 0;
@@ -289,8 +341,6 @@ public:
 		if (state == 3)GameClear();
 	}
 };
-
-
 
 //main()と大体同じ
 int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine, int nCmdShow ){
