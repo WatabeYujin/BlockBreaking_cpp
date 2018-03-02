@@ -97,11 +97,12 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		255,255,255
 	};
 
-	//ポインタを通してブロックを生成する
-	Block* bl0;
-	bl0 = new Block(80, 100);
-	Block* bl1;
-	bl1 = new Block(200, 100);
+	//ブロックを変数（配列）として管理
+	Block* bl[20];
+	for (int i = 0; i < 20; i++) {
+		//配置したい場所のブロックの座標を入力する
+		bl[i] = new Block(100 + 110 * (i % 4), 40 + 40 * (i / 4));
+	}
 
 	//windowsのアプリを実行するときにはProcessMassage()という関数を定期的に呼び出さなければならない為
 	while (ProcessMessage() != -1) {
@@ -120,11 +121,9 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		//プレイヤーの描画を行う。DrawBox(左上頂点のX座標, Y座標, 右下頂点X座標, Y座標, 色, 塗りつぶすか否か)
 		DrawBox(playerBarX, playerBarY, playerBarX + playerSizeX, playerBarY + playerSizeY, GetColor(playerColor[0], playerColor[1], playerColor[2]), TRUE);
 
-		//ブロックの生存状態を読み取る
-		bl0->View();
-		bl0->liveControl(ballPosX, ballPosY, vecX);
-		bl1->View();
-		bl1->liveControl(ballPosX, ballPosY, vecX);
+		for (int i = 0; i < 20; i++) {
+			bl[i]->View();
+		}
 
 		//ボールのスピードが0のときは動かないので条件分岐
 		if(vecX != 0&& vecY != 0){
@@ -144,28 +143,52 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 				vecX = 0;
 				vecY = 0;
 			}
+			for (int i = 0;i < 20; i++) {
+				//ブロックにボールが当たったときのボールの跳ね方
+				if (bl[i]->live) {
+					if (ballPosX > bl[i]->blockX && ballPosX < bl[i]->blockX + bl[i]->width &&
+						ballPosY + ballRadius > bl[i]->blockY && ballPosY + ballRadius < bl[i]->blockY + bl[i]->height) {//上
+						bl[i]->live = false;
+						vecY *= -1;
+					}
+					if (ballPosX > bl[i]->blockX && ballPosX < bl[i]->blockX + bl[i]->width &&
+						ballPosY - ballRadius > bl[i]->blockY && ballPosY - ballRadius < bl[i]->blockY + bl[i]->height) {//下
+						bl[i]->live = false;
+						vecY *= -1;
+					}
+					if (ballPosX + ballRadius > bl[i]->blockX && ballPosX + ballRadius < bl[i]->blockX + bl[i]->width &&
+						ballPosY > bl[i]->blockY && ballPosY < bl[i]->blockY + bl[i]->height) {//左
+						bl[i]->live = false;
+						vecX *= -1;
+					}
+					if (ballPosX - ballRadius > bl[i]->blockX && ballPosX - ballRadius < bl[i]->blockX + bl[i]->width &&
+						ballPosY > bl[i]->blockY && ballPosY < bl[i]->blockY + bl[i]->height) {//右
+						bl[i]->live = false;
+						vecX *= -1;
+					}
+				}
+			}
 		}
 		else {
 			//スペースキーを押すと開始させる。
-			DrawFormatString(260, 160, GetColor(255, 255, 255), "SPACE押さんかい");
+			DrawFormatString(260, 160, GetColor(255, 100, 255), "SPACE押さんかい");
 			if (CheckHitKey(KEY_INPUT_SPACE)) {
 				vecX = 1;
 				vecY = -1;
+				for (int i = 0; i<20; i++)bl[i]->live = true;
 			}
 		}
-		//⑥での追加
-
-		//ブロックが全て無くなったときの処理
-		//メンバー変数もアロー演算子可能
-		if (!bl0->live && bl1 ->live) {
-			DrawFormatString(260, 120, GetColor(255, 255, 255), "やるやん");
-			ballPosX = ballSpawnPosX;
-			ballPosY = ballSpawnPosY;
-			vecX = 0;
-			vecY = 0;
+		//ゲームクリア時の処理
+		for (int i = 0; i < 20; i++) {
+			if (bl[i]->live)break;
+			if (i == 19) {
+				DrawFormatString(260, 120, GetColor(255,100, 255), "やるやん");
+				ballPosX = 320;
+				ballPosY = 240;
+				vecX = 0;
+				vecY = 0;
+			}
 		}
-
-		//追加ここまで
 
 		//弾の座標を動かす
 		ballPosX += ballSpeed * vecX;
@@ -192,10 +215,6 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		//この値にループ中に発生した時間差を引くと正確に1/60秒でループが一周終わる
 		WaitTimer(1000 / 60 - (endTime - startTime));
 	}
-	
-	//newを使って生成したblockを消去する
-	delete bl0;
-	delete bl1;
 	//Dxライブラリを終了させる関数
 	DxLib_End();
 	//winMainが無事終了したことをあらわす
