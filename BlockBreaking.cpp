@@ -1,51 +1,296 @@
 //DXライブラリの引用指示
 #include <DxLib.h>
+//ブロックの数を表すマクロ
+#define BLOCK_NUM 24
+#define WINDOW_X 640
+#define WINDOW_Y 600
+
 ///ここまでの冒険を記録しますか？様の
 ///【ゲーム製作入門】C/C++でブロック崩しを作る【DXライブラリ】より
 ///http://nut-softwaredevelopper.hatenablog.com/entry/2015/04/13/214627
 
-//⑥での追加
+//ゲームに登場する物体は全てクラスとして扱うと便利
+//今回はブロック・プレイヤー・ボールをそれぞれクラスにした
 
-//ブロックについてのクラス
+//ブロックのクラス
 class Block {
 //外部から参照できるようにするためpublic
 public:
 
 	//ブロックの座標
-	int blockX, blockY;
+	int x, y;
 	//ブロックのサイズ
 	int width, height;
+	int gh;
 	//ブロックの生死状態
 	bool live;
 
 	//ブロック自体が生きていた場合描画を行う関数
 	void View() {
 		if (live) {
-			DrawBox(blockX,blockY,blockX+width,blockY+height,GetColor(255,255,255),TRUE);
-		}
-	}
-
-
-	//ボールなどがブロックに入ったら消える処理
-	void liveControl(int targetX, int targetY, int targetVec) {
-		if (targetX > blockX && targetX<blockX + width && targetY > blockY && targetY < blockY && blockY < blockY + height) {
-			live = false;
-		}
-		if (targetVec = -0 && CheckHitKey(KEY_INPUT_SPACE)) {
-			live = true;
+			DrawGraph(x, y, gh, TRUE);
 		}
 	}
 
 	//ブロックを配置する関数
 	Block(int setX, int setY) {
-		blockX = setX;
-		blockY = setY;
-		width = 90;
-		height = 20;
+		x = setX;
+		y = setY;
+		//ブロックの画像を読み込む
+		gh = LoadGraph("Block.png");
+		//読み込んだ画像から幅と高さを求めてint型に代入する関数
+		GetGraphSize(gh, &width, &height);
 		live = true;
 	}
+
+	//枚フレームごとに実行させたい処理は全てAll関数のようにまとめると楽
+	void All() {
+		View();
+	}
 };
-//追加ここまで
+
+//プレイヤーのクラス
+class Player{
+public:
+	int x, y, width, height;
+	int speed;
+	int gh;
+
+	Player() {
+		x = 320;
+		y = 550;
+		speed = 10;
+		gh = LoadGraph("Player.png");
+		width = 80;
+		height = 20;
+	}
+
+	void Move() {
+		if (CheckHitKey(KEY_INPUT_RIGHT) && x < 640- width) {
+			x += speed;
+		}
+		if (CheckHitKey(KEY_INPUT_LEFT) && x > 0) {
+			x -= speed;
+		}	
+	}
+
+	void View() {
+		DrawExtendGraph(x, y, x + width, y + height, gh, TRUE);
+	}
+
+	void All() {
+		Move();
+		View();
+	}
+};
+
+
+//ボールのクラス
+class Ball {
+public:
+	int x, y, r;
+	int vecX, vecY;
+	int speed;
+
+	Ball() {
+		x = 320;
+		y = 300;
+		r = 5;
+		vecX = 0;
+		vecY = 0;
+		speed = 5;
+	}
+
+	void Move() {
+		x += speed * vecX;
+		y += speed * vecY;
+	}
+
+	void View() {
+		DrawCircle(x, y, r, GetColor(255, 255, 255));
+	}
+
+	void All() {
+		Move();
+		View();
+	}
+};
+
+//ゲームの動作処理をクラス内での関数で実行する
+//その為メンバー変数として
+class GameControl {
+public:
+	Block * bl[BLOCK_NUM];
+	Player* pl;
+	Ball* ba;
+
+	int life;
+	int state;
+	int titlegh;
+	int gameOvergh;
+	int cleargh;
+	bool pushFlag;
+
+	//スペースキーが押されたかどうかを判断する
+	//長押しによる連続入力を防ぐための関数
+	bool PushSpace() {
+		if (CheckHitKey(KEY_INPUT_SPACE)) {
+			if (!pushFlag) {
+				pushFlag = true;
+				return true;
+			}
+		}
+		else {
+			pushFlag = false;
+		}
+		return false;
+	}
+
+	//コンストラクタでブロックプレイヤー、ボールを実体化させている
+	GameControl() {
+		life = 2;
+		state = 0;
+		titlegh = LoadGraph("Title.png");
+		gameOvergh = LoadGraph("GameOver.png");
+		cleargh = LoadGraph("Clear.png");
+		pushFlag = false;
+		for (int i = 0; i < BLOCK_NUM; i++) {
+			bl[i] = new Block(140 + (i % 4) * 100, 10 + (i / 4) * 50);
+		}
+		pl = new Player();
+		ba = new Ball();
+	}
+
+	//オブジェクトがdelete演算で消去されるときの処理
+	//コンストラクタで実体化させたものを全てdeleteしているので
+	//GameControlのポインタをdeleteするだけで全てdeleteできる
+	~GameControl() {
+		for (int i = 0; BLOCK_NUM; i++) {
+			delete bl[i];
+		}
+		delete pl;
+		delete ba;
+	}
+
+	//タイトル画面での処理(state=0)
+	void Title() {
+		DrawGraph(0, 0, titlegh, TRUE);
+		if (PushSpace()) {
+			state = 1;
+			ba->x = 320;
+			ba->y = 300;
+		}
+	}
+
+	//ゲーム本編での処理(state=1)
+	//これまで①～⑦で書いてきたゲームを動かす処理を入れている
+	void Game() {
+		for (int i = 0; i < BLOCK_NUM; i++) {
+			bl[i]->All();
+		}
+		pl->All();
+		ba->All();
+
+		for (int i = 0; i < life; i++) {
+			DrawCircle(20 + i * (life + ba->r + 10), 20, ba->r, GetColor(255, 255, 255));
+		}
+
+		for (int i = 0; BLOCK_NUM; i++) {
+			if (bl[i]->live)break;
+			if (i == BLOCK_NUM - 1) {
+				ba->vecX = 0;
+				ba->vecY = 0;
+				state = 3;
+			}
+		}
+
+		if (ba->vecX != 0 && ba->vecX != 0 && life > 0) {
+			if (ba->x > WINDOW_X)ba->vecX = -1;
+			if (ba->x < 0)ba->vecX = 1;
+			if (ba->y < 0)ba->vecY = 1;
+			if (ba->x > pl->x && ba-> x <pl ->x + pl -> width && ba -> y + ba -> r >pl->y) {
+				ba->vecY = -1;
+			}
+			if (ba->y > WINDOW_Y) {
+				ba->x = 320;
+				ba->y = 300;
+				ba->vecX = 0;
+				ba->vecY = 0;
+				life--;
+			}
+			for (int i = 0; i < BLOCK_NUM; i++) {
+				if (bl[i]->live) {
+					if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
+						ba->y + ba->r>bl[i]->y && ba->y + ba->r < bl[i]->y + bl[i]->height) {
+						bl[i]->live = false;
+						ba->vecY *= -1;
+					}
+					if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
+						ba->y - ba->r>bl[i]->y && ba->y - ba->r < bl[i]->y + bl[i]->height) {
+						bl[i]->live = false;
+						ba->vecY *= -1;
+					}
+					if (ba->x+ba->r > bl[i]->x && ba->x +ba->r < bl[i]->x + bl[i]->width &&
+						ba->y > bl[i]->y && ba->y < bl[i] ->y+bl[i]->height) {
+						bl[i]->live = false;
+						ba->vecX *= -1;
+					}
+					if (ba->x - ba->r > bl[i]->x && ba->x - ba->r < bl[i]->x + bl[i]->width &&
+						ba->y > bl[i]->y && ba->y < bl[i]->y + bl[i]->height) {
+						bl[i]->live = false;
+						ba->vecX *= -1;
+					}
+				}
+			}
+		}
+		else if (life > 0) {
+			DrawFormatString(260, 360, GetColor(255, 255, 255), "Space押さんかい");
+			//if (CheckHitKey(KEY_INPUT_SPACE)) {
+			if(PushSpace()){
+				ba->vecX = 1;
+				ba->vecY = 1;
+			}
+		}
+		else {
+			state = 2;
+		}
+	}
+	
+	//ゲームオーバー時の処理(state=2)
+	void GameOver() {
+		DrawGraph(0, 0, gameOvergh, TRUE);
+		//if (CheckHitKey(KEY_INPUT_SPACE)) {
+		if (PushSpace()) {
+			state = 0;
+			life = 2;
+			for (int i = 0; i < BLOCK_NUM; i++) {
+				bl[i]->live = true;
+			}
+		}
+	}
+
+	//ゲームクリア時の処理(state=3)
+	void GameClear() {
+		DrawGraph(0, 0, cleargh, TRUE);
+		if (CheckHitKey(KEY_INPUT_SPACE)) {
+			state = 0;
+			life = 2;
+			for (int i = 0; i < BLOCK_NUM; i++) {
+				bl[i]->live = true;
+			}
+		}
+	}
+
+	//stateの値に応じてゲームの場面を切り替える
+	void All() {
+		if (state == 0)Title();
+		if (state == 1)Game();
+		if (state == 2)GameOver();
+		if (state == 3)GameClear();
+	}
+};
+
+
 
 //main()と大体同じ
 int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine, int nCmdShow ){
@@ -53,168 +298,31 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 
 	//ウィンドウモード
 	ChangeWindowMode(TRUE);
+
+	//ウィンドウのサイズを冒頭でマクロ定義した値になる
+	SetGraphMode(WINDOW_X, WINDOW_Y, 32);
 	//DXライブラリを使うのに必要。何かエラーがあればWinMain()を抜けてくれる
 	if (DxLib_Init() == -1)return -1;
 	//動くゲームを表示するのに必要な裏画面を描画するための関数
 	SetDrawScreen(DX_SCREEN_BACK);
 
-	//プレイヤーバーの色{red,green,blue}
-	const int playerColor[3]{
-		100100,100
-	};
+	GameControl* ga = new GameControl();
 
-	//ボールの動く方向を変数で表す。vecXが+1、右-1で左。VecYが+1で下、-1で上。
-	//今回からスペースキーを押すとこの値が変わり、ボールが動き出す仕組みに変更する。
-	int vecX = 0, vecY = 0;
-	
-
-	//ボールの移動スピード
-	const int ballSpeed = 5;
-
-	//画面サイズ
-	const int windowSizeX = 640, windowSizeY = 480;
-
-	//プレイヤーバーのサイズ
-	int playerSizeX = 120, playerSizeY = 20;
-
-	//プレイヤーバーの初期位置
-	const int playerBarInitialX = windowSizeX /2 - playerSizeX/2, playerBarInitialY = 400;
-
-	//プレイヤーバーの位置
-	int playerBarX = playerBarInitialX, playerBarY = playerBarInitialY;
-
-	//ボールのスポーン位置
-	const int ballSpawnPosX = windowSizeX / 2, ballSpawnPosY = playerBarInitialY-50;
-
-	//ボールの座標
-	int ballPosX = ballSpawnPosX, ballPosY = ballSpawnPosY;
-
-	//ボールの半径
-	const int ballRadius = 10;
-
-	//ボールの色{red,green,blue}
-	const int ballColor[3]{
-		255,255,255
-	};
-
-	//ブロックを変数（配列）として管理
-	Block* bl[20];
-	for (int i = 0; i < 20; i++) {
-		//配置したい場所のブロックの座標を入力する
-		bl[i] = new Block(100 + 110 * (i % 4), 40 + 40 * (i / 4));
-	}
-
-	//windowsのアプリを実行するときにはProcessMassage()という関数を定期的に呼び出さなければならない為
-	while (ProcessMessage() != -1) {
-		//呼び出された時点での時間をミリ秒で返す
+	while (ProcessMessage() != -1)
+	{
 		int startTime = GetNowCount();
-		
-		//裏画面を表示する関数
 		ScreenFlip();
-		//裏画面を消去
 		ClearDrawScreen();
-		
-		//円を書く関数（円の中心のX座標,Y座標,半径,色,塗りつぶすか否か）
-		//Getカラーは色番号を変換
-		DrawCircle(ballPosX, ballPosY, ballRadius, GetColor(ballColor[0], ballColor[1], ballColor[2]), TRUE);
 
-		//プレイヤーの描画を行う。DrawBox(左上頂点のX座標, Y座標, 右下頂点X座標, Y座標, 色, 塗りつぶすか否か)
-		DrawBox(playerBarX, playerBarY, playerBarX + playerSizeX, playerBarY + playerSizeY, GetColor(playerColor[0], playerColor[1], playerColor[2]), TRUE);
+		ga->All();
 
-		for (int i = 0; i < 20; i++) {
-			bl[i]->View();
-		}
-
-		//ボールのスピードが0のときは動かないので条件分岐
-		if(vecX != 0&& vecY != 0){
-			//弾が跳ね返る条件文
-			if (ballPosX > windowSizeX)vecX = -1;
-			if (ballPosX < 0)vecX = 1;
-			if (ballPosY < 0)vecY = 1;
-			if (ballPosY > windowSizeY)vecY = -1;
-
-			//プレイヤーと弾が接触したら弾のY方向の向きを-1にして跳ね返す
-			if (ballPosX > playerBarX && ballPosX < playerBarX + playerSizeX &&
-				ballPosY > playerBarY &&ballPosY < playerBarY + playerSizeY) vecY = -1;
-			//画面より下にボールが出たらミスとして扱う
-			if (ballPosY > windowSizeY) {
-				ballPosX = ballSpawnPosX;
-				ballPosY = ballSpawnPosY;
-				vecX = 0;
-				vecY = 0;
-			}
-			for (int i = 0;i < 20; i++) {
-				//ブロックにボールが当たったときのボールの跳ね方
-				if (bl[i]->live) {
-					if (ballPosX > bl[i]->blockX && ballPosX < bl[i]->blockX + bl[i]->width &&
-						ballPosY + ballRadius > bl[i]->blockY && ballPosY + ballRadius < bl[i]->blockY + bl[i]->height) {//上
-						bl[i]->live = false;
-						vecY *= -1;
-					}
-					if (ballPosX > bl[i]->blockX && ballPosX < bl[i]->blockX + bl[i]->width &&
-						ballPosY - ballRadius > bl[i]->blockY && ballPosY - ballRadius < bl[i]->blockY + bl[i]->height) {//下
-						bl[i]->live = false;
-						vecY *= -1;
-					}
-					if (ballPosX + ballRadius > bl[i]->blockX && ballPosX + ballRadius < bl[i]->blockX + bl[i]->width &&
-						ballPosY > bl[i]->blockY && ballPosY < bl[i]->blockY + bl[i]->height) {//左
-						bl[i]->live = false;
-						vecX *= -1;
-					}
-					if (ballPosX - ballRadius > bl[i]->blockX && ballPosX - ballRadius < bl[i]->blockX + bl[i]->width &&
-						ballPosY > bl[i]->blockY && ballPosY < bl[i]->blockY + bl[i]->height) {//右
-						bl[i]->live = false;
-						vecX *= -1;
-					}
-				}
-			}
-		}
-		else {
-			//スペースキーを押すと開始させる。
-			DrawFormatString(260, 160, GetColor(255, 100, 255), "SPACE押さんかい");
-			if (CheckHitKey(KEY_INPUT_SPACE)) {
-				vecX = 1;
-				vecY = -1;
-				for (int i = 0; i<20; i++)bl[i]->live = true;
-			}
-		}
-		//ゲームクリア時の処理
-		for (int i = 0; i < 20; i++) {
-			if (bl[i]->live)break;
-			if (i == 19) {
-				DrawFormatString(260, 120, GetColor(255,100, 255), "やるやん");
-				ballPosX = 320;
-				ballPosY = 240;
-				vecX = 0;
-				vecY = 0;
-			}
-		}
-
-		//弾の座標を動かす
-		ballPosX += ballSpeed * vecX;
-		ballPosY += ballSpeed * vecY;
-
-		//CheckHitKey()で右キーが”押されているか”を判定し、押されている間はプレイヤーのX座標を+10する。
-		if (CheckHitKey(KEY_INPUT_RIGHT) == 1 && playerBarX < windowSizeX - playerSizeX) {
-			playerBarX += 10;
-		}
-		//逆に左キーが押されていた場合、プレイヤーのX座標を-10する。
-		if (CheckHitKey(KEY_INPUT_LEFT) == 1 && playerBarX > 0) {
-			playerBarX -= 10;
-		}
-
-		//引数で指定するキーが押されているかどうか。押されていれば1を返す
-		//今回の場合escが押されると1を返し、ループを抜ける
 		if (CheckHitKey(KEY_INPUT_ESCAPE) == 1)break;
-
-		//startTimeと同じ。ループを一周するごとに発生する時間差を修正するのに使用
 		int endTime = GetNowCount();
-
-		//ミリ秒単位で指定した時間、処理を停止する関数
-		//60FPSで1秒＝1000ミリ秒なので1000/60ミリ秒が50回連続したら1000ミリ秒（1秒）
-		//この値にループ中に発生した時間差を引くと正確に1/60秒でループが一周終わる
-		WaitTimer(1000 / 60 - (endTime - startTime));
+		WaitTimer((1000 / 60) - (endTime - startTime));
 	}
+
+	delete ga;
+
 	//Dxライブラリを終了させる関数
 	DxLib_End();
 	//winMainが無事終了したことをあらわす
