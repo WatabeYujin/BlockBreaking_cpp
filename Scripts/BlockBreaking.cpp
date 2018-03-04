@@ -1,6 +1,6 @@
 //DXライブラリの引用指示
 #include <DxLib.h>
-
+#include <mmsystem.h>
 #include <string>       // ヘッダファイルインクルード
 
 using namespace std;         //  名前空間指定
@@ -69,13 +69,16 @@ public:
 		height = 20;
 	}
 
-	void Move() {
+	int Move() {
 		if (CheckHitKey(KEY_INPUT_RIGHT) && x < 640- width) {
 			x += speed;
 		}
 		if (CheckHitKey(KEY_INPUT_LEFT) && x > 0) {
 			x -= speed;
 		}	
+		else {
+			return 0;
+		}
 	}
 
 	void View() {
@@ -88,10 +91,10 @@ public:
 	}
 };
 
-
 //ボールのクラス
 class Ball {
 public:
+	int nextMovePosX, nextMovePosY;
 	int x, y, r;
 	int vecX, vecY;
 	int speed;
@@ -106,8 +109,8 @@ public:
 	}
 
 	void Move() {
-		x += speed * vecX;
-		y += speed * vecY;
+		x = nextMovePosX;
+		y = nextMovePosY;
 	}
 
 	void View() {
@@ -115,7 +118,6 @@ public:
 	}
 
 	void All() {
-		Move();
 		View();
 	}
 };
@@ -153,6 +155,21 @@ public:
 
 };
 
+//ボールの弾道を表示する
+class Line {
+public:
+	int pos1[2];
+	int pos2[2];
+
+	void drawline(int sx, int sy, int dx, int dy) {
+		DrawLine(sx, sy, dx, dy, GetColor(255, 128, 128));
+	}
+
+	void All(){
+		drawline(pos1[0], pos1[1], pos2[0], pos2[1]);
+	}
+};
+
 //ゲームの動作処理をクラス内での関数で実行する
 //その為メンバー変数として
 class GameControl {
@@ -161,25 +178,48 @@ public:
 	Player* pl;
 	Ball* ba;
 	Audio * au[3];
+	Line * li;
+
+	int catchScale;
 
 	int life;
 	int state;
 	int titlegh;
 	int gameOvergh;
 	int cleargh;
-	bool pushFlag;
+	bool spacePushFlag;
+	bool shiftPushFlag;
+	bool ballCatchMode;
+	int tempo;
+	int startTime;
+	int endTime;
 
 	//スペースキーが押されたかどうかを判断する
 	//長押しによる連続入力を防ぐための関数
 	bool PushSpace() {
 		if (CheckHitKey(KEY_INPUT_SPACE)) {
-			if (!pushFlag) {
-				pushFlag = true;
+			if (!spacePushFlag) {
+				spacePushFlag = true;
 				return true;
 			}
 		}
 		else {
-			pushFlag = false;
+			spacePushFlag = false;
+		}
+		return false;
+	}
+
+	//シフトキーが押されたかどうかを判断する
+	//長押しによる連続入力を防ぐための関数
+	bool PushShift() {
+		if (CheckHitKey(KEY_INPUT_LSHIFT)) {
+			if (!shiftPushFlag) {
+				shiftPushFlag = true;
+				return true;
+			}
+		}
+		else {
+			shiftPushFlag = false;
 		}
 		return false;
 	}
@@ -187,19 +227,24 @@ public:
 	//コンストラクタでブロックプレイヤー、ボールを実体化させている
 	GameControl() {
 		life = 2;
+		catchScale = 7;
 		state = 0;
+		tempo = 59;
 		titlegh = LoadGraph("Resource/Sprite/Title.png");
 		gameOvergh = LoadGraph("Resource/Sprite/GameOver.png");
 		cleargh = LoadGraph("Resource/Sprite/Clear.png");
-		pushFlag = false;
+		spacePushFlag = false;
+		shiftPushFlag = false;
+		ballCatchMode = false;
 		for (int i = 0; i < BLOCK_NUM; i++) {
 			bl[i] = new Block(140 + (i % 4) * 100, 10 + (i / 4) * 50);
 		}
-		au[0] = new Audio(LoadSoundMem("Resource/Audio/Uprising.mp3"));
+		au[0] = new Audio(LoadSoundMem("Resource/Audio/Future_Monday.mp3"));
 		au[1] = new Audio(LoadSoundMem("Resource/Audio/bound.ogg"));
 		au[2] = new Audio(LoadSoundMem("Resource/Audio/player.ogg"));
 		pl = new Player();
 		ba = new Ball();
+		li = new Line();
 	}
 
 	//オブジェクトがdelete演算で消去されるときの処理
@@ -214,6 +259,7 @@ public:
 		}
 		delete pl;
 		delete ba;
+		delete li;
 	}
 
 	//タイトル画面での処理(state=0)
@@ -227,19 +273,47 @@ public:
 		}
 	}
 
+	void BallLine() {
+		int m_targetPosX = ba->x+ ba->speed * ba->vecX, m_targetPosY = ba->y + ba->speed * ba->vecY;
+
+		while (ba->vecX != 0 && ba->vecY != 0 &&
+				m_targetPosX < WINDOW_X && m_targetPosX > 0 &&
+				m_targetPosY < WINDOW_Y && m_targetPosY > 0)
+		{
+			m_targetPosX += ba->speed * ba->vecX;
+			m_targetPosY += ba->speed * ba->vecY;
+			for (int i = 0; i < BLOCK_NUM; i++) {
+				if (bl[i]->live) {
+					if (m_targetPosX + ba->r > bl[i]->x && m_targetPosX - ba->r < bl[i]->x + bl[i]->width&&
+						m_targetPosY + ba->r>bl[i]->y &&m_targetPosY - ba->r < bl[i]->y + bl[i]->height) {
+						goto BallLine_exit;
+					}
+				}
+			}
+			if (m_targetPosX > pl->x && m_targetPosX < pl->x + pl->width &&m_targetPosY + ba->r >pl->y) {
+				goto BallLine_exit;
+			}
+
+		}
+	BallLine_exit:
+		li->drawline(ba->x, ba->y, m_targetPosX, m_targetPosY);
+		ba->nextMovePosX = m_targetPosX;
+		ba->nextMovePosY = m_targetPosY;
+	}
+
 	//ゲーム本編での処理(state=1)
 	//これまで①～⑦で書いてきたゲームを動かす処理を入れている
 	void Game() {
+		startTime = GetNowCount();
 		for (int i = 0; i < BLOCK_NUM; i++) {
 			bl[i]->All();
 		}
-		pl->All();
-		ba->All();
-
+		pl-> All();
+		ba-> View();
+		BallLine();
 		for (int i = 0; i < life; i++) {
 			DrawCircle(20 + i * (life + ba->r + 10), 20, ba->r, GetColor(255, 255, 255));
 		}
-
 		for (int i = 0; BLOCK_NUM; i++) {
 			if (bl[i]->live)break;
 			if (i == BLOCK_NUM - 1) {
@@ -248,47 +322,69 @@ public:
 				state = 3;
 			}
 		}
-
 		if (ba->vecX != 0 && ba->vecX != 0 && life > 0) {
-			if (ba->x > WINDOW_X)ba->vecX = -1;
-			if (ba->x < 0)ba->vecX = 1;
-			if (ba->y < 0)ba->vecY = 1;
-			if (ba->x > pl->x && ba-> x <pl ->x + pl -> width && ba -> y + ba -> r >pl->y) {
-				au[2]->PlayAudio(1);
-				ba->vecY = -1;
+			//endTime = GetNowCount();
+			//if ((startTime - endTime)*1000 == tempo) {
+			if(startTime + (tempo * 1000) <= GetNowCount()){
+				
+				ballCatchMode = false;
+				ba->Move();
 			}
-			if (ba->y > WINDOW_Y) {
-				ba->x = 320;
-				ba->y = 300;
-				ba->vecX = 0;
-				ba->vecY = 0;
-				life--;
+			if (ballCatchMode) {
+				ba->y = pl->y;
+				ba->x = pl->x+pl->width/2;
+				if (!CheckHitKey(KEY_INPUT_LSHIFT)) {
+					ballCatchMode = false;
+					ba->vecY = -1;
+				}
 			}
-			for (int i = 0; i < BLOCK_NUM; i++) {
-				if (bl[i]->live) {
-					if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
-						ba->y + ba->r>bl[i]->y && ba->y + ba->r < bl[i]->y + bl[i]->height) {
-						au[1]->PlayAudio(1);
-						bl[i]->live = false;
-						ba->vecY *= -1;
-					}
-					if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
-						ba->y - ba->r>bl[i]->y && ba->y - ba->r < bl[i]->y + bl[i]->height) {
-						au[1]->PlayAudio(1);
-						bl[i]->live = false;
-						ba->vecY *= -1;
-					}
-					if (ba->x+ba->r > bl[i]->x && ba->x +ba->r < bl[i]->x + bl[i]->width &&
-						ba->y > bl[i]->y && ba->y < bl[i] ->y+bl[i]->height) {
-						au[1]->PlayAudio(1);
-						bl[i]->live = false;
-						ba->vecX *= -1;
-					}
-					if (ba->x - ba->r > bl[i]->x && ba->x - ba->r < bl[i]->x + bl[i]->width &&
-						ba->y > bl[i]->y && ba->y < bl[i]->y + bl[i]->height) {
-						au[1]->PlayAudio(1);
-						bl[i]->live = false;
-						ba->vecX *= -1;
+			else {
+				
+				if (ba->x + ba->r >= WINDOW_X)ba->vecX = -1;
+				if (ba->x - ba->r <= 0)ba->vecX = 1;
+				if (ba->y - ba->r <= 0)ba->vecY = 1;
+				//ボールを捕まえるときの処理
+				if (PushShift() &&ba->x > pl->x && ba->x <pl->x + pl->width && ba->y + ba->r+catchScale > pl->y) {
+					ballCatchMode = true;
+				}
+				//プレイヤーにボールが当たったときの処理
+				if (ba->x > pl->x && ba->x <pl->x + pl->width && ba->y + ba->r >pl->y) {
+					au[2]->PlayAudio(1);
+					ba->vecY = -1;
+				}
+				if (ba->y > WINDOW_Y) {
+					ba->x = 320;
+					ba->y = 300;
+					ba->vecX = 0;
+					ba->vecY = 0;
+					life--;
+				}
+				for (int i = 0; i < BLOCK_NUM; i++) {
+					if (bl[i]->live) {
+						if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
+							ba->y + ba->r>bl[i]->y && ba->y + ba->r < bl[i]->y + bl[i]->height) {
+							au[1]->PlayAudio(1);
+							bl[i]->live = false;
+							ba->vecY *= -1;
+						}
+						if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
+							ba->y - ba->r>bl[i]->y && ba->y - ba->r < bl[i]->y + bl[i]->height) {
+							au[1]->PlayAudio(1);
+							bl[i]->live = false;
+							ba->vecY *= -1;
+						}
+						if (ba->x + ba->r > bl[i]->x && ba->x + ba->r < bl[i]->x + bl[i]->width &&
+							ba->y > bl[i]->y && ba->y < bl[i]->y + bl[i]->height) {
+							au[1]->PlayAudio(1);
+							bl[i]->live = false;
+							ba->vecX *= -1;
+						}
+						if (ba->x - ba->r > bl[i]->x && ba->x - ba->r < bl[i]->x + bl[i]->width &&
+							ba->y > bl[i]->y && ba->y < bl[i]->y + bl[i]->height) {
+							au[1]->PlayAudio(1);
+							bl[i]->live = false;
+							ba->vecX *= -1;
+						}
 					}
 				}
 			}
@@ -296,7 +392,7 @@ public:
 		else if (life > 0) {
 			DrawFormatString(260, 360, GetColor(255, 255, 255), "Space押さんかい");
 			//if (CheckHitKey(KEY_INPUT_SPACE)) {
-			if(PushSpace()){
+			if (PushSpace()) {
 				ba->vecX = 1;
 				ba->vecY = 1;
 			}
@@ -335,8 +431,12 @@ public:
 
 	//stateの値に応じてゲームの場面を切り替える
 	void All() {
-		if (state == 0)Title();
-		if (state == 1)Game();
+		if (state == 0) {
+			Title();
+		}
+		if (state == 1) {
+			Game();
+		}
 		if (state == 2)GameOver();
 		if (state == 3)GameClear();
 	}
@@ -369,8 +469,8 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		if (CheckHitKey(KEY_INPUT_ESCAPE) == 1)break;
 		int endTime = GetNowCount();
 		WaitTimer((1000 / 60) - (endTime - startTime));
-	}
 
+	}
 	delete ga;
 
 	//Dxライブラリを終了させる関数
