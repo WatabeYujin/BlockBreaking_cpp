@@ -1,7 +1,8 @@
 //DXライブラリの引用指示
 #include <DxLib.h>
-#include <mmsystem.h>
+#include <windows.h>
 #include <string>       // ヘッダファイルインクルード
+#pragma comment(lib, "winmm.lib")
 
 using namespace std;         //  名前空間指定
 //ブロックの数を表すマクロ
@@ -177,7 +178,7 @@ public:
 	Block * bl[BLOCK_NUM];
 	Player* pl;
 	Ball* ba;
-	Audio * au[3];
+	Audio * au[5];
 	Line * li;
 
 	int catchScale;
@@ -192,7 +193,7 @@ public:
 	bool ballCatchMode;
 	int tempo;
 	int startTime;
-	int endTime;
+	bool wallSE;
 
 	//スペースキーが押されたかどうかを判断する
 	//長押しによる連続入力を防ぐための関数
@@ -229,7 +230,8 @@ public:
 		life = 2;
 		catchScale = 7;
 		state = 0;
-		tempo = 59;
+		tempo = 938;
+		wallSE = false;
 		titlegh = LoadGraph("Resource/Sprite/Title.png");
 		gameOvergh = LoadGraph("Resource/Sprite/GameOver.png");
 		cleargh = LoadGraph("Resource/Sprite/Clear.png");
@@ -242,12 +244,14 @@ public:
 		au[0] = new Audio(LoadSoundMem("Resource/Audio/Future_Monday.mp3"));
 		au[1] = new Audio(LoadSoundMem("Resource/Audio/bound.ogg"));
 		au[2] = new Audio(LoadSoundMem("Resource/Audio/player.ogg"));
+		au[3] = new Audio(LoadSoundMem("Resource/Audio/wall.ogg"));
+		au[4] = new Audio(LoadSoundMem("Resource/Audio/miss.ogg"));
 		pl = new Player();
 		ba = new Ball();
 		li = new Line();
 	}
-
 	//オブジェクトがdelete演算で消去されるときの処理
+
 	//コンストラクタで実体化させたものを全てdeleteしているので
 	//GameControlのポインタをdeleteするだけで全てdeleteできる
 	~GameControl() {
@@ -270,10 +274,12 @@ public:
 			ba->x = 320;
 			ba->y = 300;
 			au[0]->PlayAudio(2);
+			startTime = GetSoundCurrentTime(au[0]->audioMem);
 		}
 	}
 
 	void BallLine() {
+
 		int m_targetPosX = ba->x+ ba->speed * ba->vecX, m_targetPosY = ba->y + ba->speed * ba->vecY;
 
 		while (ba->vecX != 0 && ba->vecY != 0 &&
@@ -304,7 +310,7 @@ public:
 	//ゲーム本編での処理(state=1)
 	//これまで①～⑦で書いてきたゲームを動かす処理を入れている
 	void Game() {
-		startTime = GetNowCount();
+		//startTime = GetNowCount();
 		for (int i = 0; i < BLOCK_NUM; i++) {
 			bl[i]->All();
 		}
@@ -323,36 +329,52 @@ public:
 			}
 		}
 		if (ba->vecX != 0 && ba->vecX != 0 && life > 0) {
-			//endTime = GetNowCount();
 			//if ((startTime - endTime)*1000 == tempo) {
-			if(startTime + (tempo * 1000) <= GetNowCount()){
-				
+			int m_time = GetSoundCurrentTime(au[0]->audioMem) - startTime;
+			if(m_time >= tempo){
+			//if (GetSoundCurrentTime(au[0]->audioMem)/10 % tempo == 0) {
+				startTime += tempo;
+				//startTime = GetSoundCurrentTime(au[0]->audioMem);
 				ballCatchMode = false;
 				ba->Move();
+				wallSE = false;
 			}
 			if (ballCatchMode) {
 				ba->y = pl->y;
 				ba->x = pl->x+pl->width/2;
-				if (!CheckHitKey(KEY_INPUT_LSHIFT)) {
-					ballCatchMode = false;
-					ba->vecY = -1;
-				}
 			}
 			else {
 				
-				if (ba->x + ba->r >= WINDOW_X)ba->vecX = -1;
-				if (ba->x - ba->r <= 0)ba->vecX = 1;
-				if (ba->y - ba->r <= 0)ba->vecY = 1;
+				if (!wallSE && ba->x + ba->r >= WINDOW_X) {
+					ba->vecX = -1;
+					au[3]->PlayAudio(1);
+					wallSE = true;
+				}
+				if (!wallSE && ba->x - ba->r <= 0) {
+					ba->vecX = 1;
+					au[3]->PlayAudio(1);
+					wallSE = true;
+				}
+				if (!wallSE && ba->y - ba->r <= 0) {
+					ba->vecY = 1;
+					au[3]->PlayAudio(1);
+					wallSE = true;
+				}
+				/*
 				//ボールを捕まえるときの処理
 				if (PushShift() &&ba->x > pl->x && ba->x <pl->x + pl->width && ba->y + ba->r+catchScale > pl->y) {
 					ballCatchMode = true;
 				}
+				*/
 				//プレイヤーにボールが当たったときの処理
-				if (ba->x > pl->x && ba->x <pl->x + pl->width && ba->y + ba->r >pl->y) {
+				if (!ballCatchMode && ba->x > pl->x && ba->x <pl->x + pl->width &&
+					ba->y + ba->r >pl->y &&ba->y < pl->y + pl->height) {
 					au[2]->PlayAudio(1);
+					ballCatchMode=true;
 					ba->vecY = -1;
 				}
 				if (ba->y > WINDOW_Y) {
+					au[4]->PlayAudio(1);
 					ba->x = 320;
 					ba->y = 300;
 					ba->vecX = 0;
@@ -374,13 +396,13 @@ public:
 							ba->vecY *= -1;
 						}
 						if (ba->x + ba->r > bl[i]->x && ba->x + ba->r < bl[i]->x + bl[i]->width &&
-							ba->y > bl[i]->y && ba->y < bl[i]->y + bl[i]->height) {
+							ba->y >= bl[i]->y && ba->y <= bl[i]->y + bl[i]->height) {
 							au[1]->PlayAudio(1);
 							bl[i]->live = false;
 							ba->vecX *= -1;
 						}
 						if (ba->x - ba->r > bl[i]->x && ba->x - ba->r < bl[i]->x + bl[i]->width &&
-							ba->y > bl[i]->y && ba->y < bl[i]->y + bl[i]->height) {
+							ba->y >= bl[i]->y && ba->y <= bl[i]->y + bl[i]->height) {
 							au[1]->PlayAudio(1);
 							bl[i]->live = false;
 							ba->vecX *= -1;
@@ -399,6 +421,10 @@ public:
 		}
 		else {
 			state = 2;
+		}
+		if (GetSoundCurrentTime(au[0]->audioMem) - startTime >= tempo) {
+			//startTime = GetSoundCurrentTime(au[0]->audioMem);
+			startTime += tempo;
 		}
 	}
 	
@@ -420,7 +446,7 @@ public:
 	void GameClear() {
 		au[0]->StopAudio();
 		DrawGraph(0, 0, cleargh, TRUE);
-		if (CheckHitKey(KEY_INPUT_SPACE)) {
+		if (PushSpace()) {
 			state = 0;
 			life = 2;
 			for (int i = 0; i < BLOCK_NUM; i++) {
@@ -457,7 +483,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 	SetDrawScreen(DX_SCREEN_BACK);
 
 	GameControl* ga = new GameControl();
-
+	timeBeginPeriod(1);
 	while (ProcessMessage() != -1)
 	{
 		int startTime = GetNowCount();
@@ -471,6 +497,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine
 		WaitTimer((1000 / 60) - (endTime - startTime));
 
 	}
+	timeEndPeriod(1);
 	delete ga;
 
 	//Dxライブラリを終了させる関数
