@@ -58,13 +58,13 @@ public:
 class Player{
 public:
 	int x, y, width, height;
-	int speed;
+	int tempospeed;
 	int gh;
 
 	Player() {
 		x = 320;
 		y = 550;
-		speed = 10;
+		tempospeed = 938;
 		gh = LoadGraph("Resource/Sprite/Player.png");
 		width = 80;
 		height = 20;
@@ -72,10 +72,10 @@ public:
 
 	int Move() {
 		if (CheckHitKey(KEY_INPUT_RIGHT) && x < 640- width) {
-			x += speed;
+			x += 10 + (1000 - tempospeed)/25;
 		}
 		if (CheckHitKey(KEY_INPUT_LEFT) && x > 0) {
-			x -= speed;
+			x -= 10 + (1000 - tempospeed) / 25;
 		}	
 		else {
 			return 0;
@@ -104,8 +104,8 @@ public:
 		x = 320;
 		y = 300;
 		r = 5;
-		vecX = 0;
-		vecY = 0;
+		vecX = 1;
+		vecY = 1;
 		speed = 5;
 	}
 
@@ -178,7 +178,8 @@ public:
 	Block * bl[BLOCK_NUM];
 	Player* pl;
 	Ball* ba;
-	Audio * au[5];
+	Audio * bgm[2];
+	Audio * se[6];
 	Line * li;
 
 	int catchScale;
@@ -194,6 +195,8 @@ public:
 	int tempo;
 	int startTime;
 	bool wallSE;
+	int bgmID;
+	bool gamestart;
 
 	//スペースキーが押されたかどうかを判断する
 	//長押しによる連続入力を防ぐための関数
@@ -227,6 +230,7 @@ public:
 
 	//コンストラクタでブロックプレイヤー、ボールを実体化させている
 	GameControl() {
+		gamestart = false;
 		life = 2;
 		catchScale = 7;
 		state = 0;
@@ -241,14 +245,22 @@ public:
 		for (int i = 0; i < BLOCK_NUM; i++) {
 			bl[i] = new Block(140 + (i % 4) * 100, 10 + (i / 4) * 50);
 		}
-		au[0] = new Audio(LoadSoundMem("Resource/Audio/Future_Monday.mp3"));
-		au[1] = new Audio(LoadSoundMem("Resource/Audio/bound.ogg"));
-		au[2] = new Audio(LoadSoundMem("Resource/Audio/player.ogg"));
-		au[3] = new Audio(LoadSoundMem("Resource/Audio/wall.ogg"));
-		au[4] = new Audio(LoadSoundMem("Resource/Audio/miss.ogg"));
+		bgm[0] = new Audio(LoadSoundMem("Resource/Audio/Future_Monday.mp3"));
+		bgm[1] = new Audio(LoadSoundMem("Resource/Audio/barsulbeat.mp3"));
+		se[0] = new Audio(LoadSoundMem("Resource/Audio/bound.ogg"));
+		se[1] = new Audio(LoadSoundMem("Resource/Audio/player.ogg"));
+		se[2] = new Audio(LoadSoundMem("Resource/Audio/wall.ogg"));
+		se[3] = new Audio(LoadSoundMem("Resource/Audio/miss.ogg"));
+		
 		pl = new Player();
 		ba = new Ball();
 		li = new Line();
+		ba->vecX = 1;
+		ba->vecY = 1;
+		tempo = 938;
+		bgm[bgmID]->StopAudio();
+		bgmID = 0;
+		bgm[bgmID]->PlayAudio(2);
 	}
 	//オブジェクトがdelete演算で消去されるときの処理
 
@@ -258,8 +270,11 @@ public:
 		for (int i = 0; BLOCK_NUM; i++) {
 			delete bl[i];
 		}
-		for (int i = 0; 1; i++) {
-			delete au[i];
+		for (int i = 0; i>sizeof(se); i++) {
+			delete se[i];
+		}
+		for (int i = 0; i>sizeof(bgm); i++) {
+			delete bgm[i];
 		}
 		delete pl;
 		delete ba;
@@ -269,12 +284,27 @@ public:
 	//タイトル画面での処理(state=0)
 	void Title() {
 		DrawGraph(0, 0, titlegh, TRUE);
+		if (CheckHitKey(KEY_INPUT_1)) {
+			tempo = 938;
+			bgm[bgmID]->StopAudio();
+			bgmID = 0;
+			bgm[bgmID]->PlayAudio(2);
+		}
+		if (CheckHitKey(KEY_INPUT_2)) {
+			tempo = 324;
+			bgm[bgmID]->StopAudio();
+			bgmID = 1;
+			bgm[bgmID]->PlayAudio(2);
+		}
+			
 		if (PushSpace()) {
+			pl->tempospeed = tempo;
+			bgm[bgmID]->StopAudio();
 			state = 1;
 			ba->x = 320;
 			ba->y = 300;
-			au[0]->PlayAudio(2);
-			startTime = GetSoundCurrentTime(au[0]->audioMem);
+			bgm[bgmID]->PlayAudio(2);
+			startTime = GetSoundCurrentTime(bgm[bgmID]->audioMem);
 		}
 	}
 
@@ -282,8 +312,7 @@ public:
 
 		int m_targetPosX = ba->x+ ba->speed * ba->vecX, m_targetPosY = ba->y + ba->speed * ba->vecY;
 
-		while (ba->vecX != 0 && ba->vecY != 0 &&
-				m_targetPosX < WINDOW_X && m_targetPosX > 0 &&
+		while (m_targetPosX < WINDOW_X && m_targetPosX > 0 &&
 				m_targetPosY < WINDOW_Y && m_targetPosY > 0)
 		{
 			m_targetPosX += ba->speed * ba->vecX;
@@ -323,14 +352,15 @@ public:
 		for (int i = 0; BLOCK_NUM; i++) {
 			if (bl[i]->live)break;
 			if (i == BLOCK_NUM - 1) {
-				ba->vecX = 0;
-				ba->vecY = 0;
+				gamestart = false;
+				ba->vecX = 1;
+				ba->vecY = 1;
 				state = 3;
 			}
 		}
-		if (ba->vecX != 0 && ba->vecX != 0 && life > 0) {
+		if (gamestart && life > 0) {
 			//if ((startTime - endTime)*1000 == tempo) {
-			int m_time = GetSoundCurrentTime(au[0]->audioMem) - startTime;
+			int m_time = GetSoundCurrentTime(bgm[bgmID]->audioMem) - startTime;
 			if(m_time >= tempo){
 			//if (GetSoundCurrentTime(au[0]->audioMem)/10 % tempo == 0) {
 				startTime += tempo;
@@ -347,17 +377,17 @@ public:
 				
 				if (!wallSE && ba->x + ba->r >= WINDOW_X) {
 					ba->vecX = -1;
-					au[3]->PlayAudio(1);
+					se[2]->PlayAudio(1);
 					wallSE = true;
 				}
 				if (!wallSE && ba->x - ba->r <= 0) {
 					ba->vecX = 1;
-					au[3]->PlayAudio(1);
+					se[2]->PlayAudio(1);
 					wallSE = true;
 				}
 				if (!wallSE && ba->y - ba->r <= 0) {
 					ba->vecY = 1;
-					au[3]->PlayAudio(1);
+					se[2]->PlayAudio(1);
 					wallSE = true;
 				}
 				/*
@@ -369,41 +399,40 @@ public:
 				//プレイヤーにボールが当たったときの処理
 				if (!ballCatchMode && ba->x > pl->x && ba->x <pl->x + pl->width &&
 					ba->y + ba->r >pl->y &&ba->y < pl->y + pl->height) {
-					au[2]->PlayAudio(1);
+					se[1]->PlayAudio(1);
 					ballCatchMode=true;
 					ba->vecY = -1;
 				}
 				if (ba->y > WINDOW_Y) {
-					au[4]->PlayAudio(1);
+					gamestart = false;
+					se[3]->PlayAudio(1);
 					ba->x = 320;
 					ba->y = 300;
-					ba->vecX = 0;
-					ba->vecY = 0;
 					life--;
 				}
 				for (int i = 0; i < BLOCK_NUM; i++) {
 					if (bl[i]->live) {
 						if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
 							ba->y + ba->r>bl[i]->y && ba->y + ba->r < bl[i]->y + bl[i]->height) {
-							au[1]->PlayAudio(1);
+							se[0]->PlayAudio(1);
 							bl[i]->live = false;
 							ba->vecY *= -1;
 						}
 						if (ba->x > bl[i]->x && ba->x < bl[i]->x + bl[i]->width &&
 							ba->y - ba->r>bl[i]->y && ba->y - ba->r < bl[i]->y + bl[i]->height) {
-							au[1]->PlayAudio(1);
+							se[0]->PlayAudio(1);
 							bl[i]->live = false;
 							ba->vecY *= -1;
 						}
 						if (ba->x + ba->r > bl[i]->x && ba->x + ba->r < bl[i]->x + bl[i]->width &&
 							ba->y >= bl[i]->y && ba->y <= bl[i]->y + bl[i]->height) {
-							au[1]->PlayAudio(1);
+							se[0]->PlayAudio(1);
 							bl[i]->live = false;
 							ba->vecX *= -1;
 						}
 						if (ba->x - ba->r > bl[i]->x && ba->x - ba->r < bl[i]->x + bl[i]->width &&
 							ba->y >= bl[i]->y && ba->y <= bl[i]->y + bl[i]->height) {
-							au[1]->PlayAudio(1);
+							se[0]->PlayAudio(1);
 							bl[i]->live = false;
 							ba->vecX *= -1;
 						}
@@ -415,14 +444,13 @@ public:
 			DrawFormatString(260, 360, GetColor(255, 255, 255), "Space押さんかい");
 			//if (CheckHitKey(KEY_INPUT_SPACE)) {
 			if (PushSpace()) {
-				ba->vecX = 1;
-				ba->vecY = 1;
+				gamestart = true;
 			}
 		}
 		else {
 			state = 2;
 		}
-		if (GetSoundCurrentTime(au[0]->audioMem) - startTime >= tempo) {
+		if (GetSoundCurrentTime(bgm[bgmID]->audioMem) - startTime >= tempo) {
 			//startTime = GetSoundCurrentTime(au[0]->audioMem);
 			startTime += tempo;
 		}
@@ -430,7 +458,7 @@ public:
 	
 	//ゲームオーバー時の処理(state=2)
 	void GameOver() {
-		au[0]->StopAudio();
+		bgm[bgmID]->StopAudio();
 		DrawGraph(0, 0, gameOvergh, TRUE);
 		//if (CheckHitKey(KEY_INPUT_SPACE)) {
 		if (PushSpace()) {
@@ -444,7 +472,7 @@ public:
 
 	//ゲームクリア時の処理(state=3)
 	void GameClear() {
-		au[0]->StopAudio();
+		bgm[bgmID]->StopAudio();
 		DrawGraph(0, 0, cleargh, TRUE);
 		if (PushSpace()) {
 			state = 0;
